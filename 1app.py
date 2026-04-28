@@ -419,14 +419,14 @@ try:
                 "change_pct": chg_pct
             })
 except:        
-try:
-    raw = yf.download(
-        symbols,
-        period="2d",
-        progress=False,
-        threads=True,
-        auto_adjust=False
-    )["Close"]
+    try:
+        raw = yf.download(
+            symbols,
+            period="2d",
+            progress=False,
+            threads=True,
+            auto_adjust=False
+        )["Close"]
 
     if raw.empty:
         return results
