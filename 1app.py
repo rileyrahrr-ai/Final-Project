@@ -80,7 +80,7 @@ def apply_theme():
 
         /* ── Sidebar ── */
         section[data-testid="stSidebar"] {{
-            background-color: {C_PANEL} !important;
+            background-color: {C_PANEL} !important; 
             border-right: 2px solid {C_ACCENT};
         }}
         section[data-testid="stSidebar"] * {{
@@ -134,14 +134,16 @@ def apply_theme():
         }}
 
         /* ── Ticker tape strip ── */
-        .ticker-wrapper {{
-            background-color: {C_TICKER_BG};
-            border-top: 1px solid {C_ACCENT};
-            border-bottom: 1px solid {C_BORDER};
-            overflow: hidden;
-            white-space: nowrap;
-            padding: 6px 0;
-            margin-bottom: 0;
+        .ticker-wrapper {
+    background-color: {C_TICKER_BG};
+    border-top: 1px solid {C_ACCENT};
+    border-bottom: 1px solid {C_BORDER};
+    overflow: hidden;
+    white-space: nowrap;
+    padding: 10px 0;
+    margin-bottom: 0;
+}
+
         }}
         .ticker-track {{
             display: inline-block;
@@ -150,17 +152,20 @@ def apply_theme():
         .ticker-track:hover {{
             animation-play-state: paused;
         }}
-        .ticker-item {{
-            display: inline-block;
-            padding: 0 28px;
-            font-size: 0.8rem;
-            font-family: {FONT};
-            letter-spacing: 0.04em;
+      .ticker-item {
+    display: inline-block;
+    padding: 0 30px;
+    font-size: 0.9rem;
+    font-family: {FONT};
+    letter-spacing: 0.04em;
+}
+
         }}
         .t-sym  {{ color: {C_TEXT};    font-weight: 700; }}
         .t-price{{ color: #BBBBBB;     margin-left: 6px; }}
-        .t-up   {{ color: {C_GREEN};   margin-left: 4px; font-size: 0.75rem; }}
-        .t-down {{ color: {C_RED};     margin-left: 4px; font-size: 0.75rem; }}
+        .t-up   {{ color: {C_GREEN};   margin-left: 4px; font-size: 0.82rem; }}
+.t-down {{ color: {C_RED};     margin-left: 4px; font-size: 0.82rem; }}
+
         @keyframes ticker-scroll {{
             0%   {{ transform: translateX(0); }}
             100% {{ transform: translateX(-50%); }}
@@ -381,7 +386,13 @@ def fetch_ticker_data(symbols: list) -> list:
     results = []
     try:
         # Download all at once for speed (much faster than one-by-one)
-        raw = yf.download(symbols, period="2d", progress=False, threads=True)["Close"]
+               raw = yf.download(
+            symbols,
+            period="2d",
+            progress=False,
+            threads=True,
+            auto_adjust=False
+        )["Close"]
         if raw.empty:
             return results
         # Handle single-ticker edge case (returns a Series, not DataFrame)
@@ -518,6 +529,15 @@ def calc_volatility(df: pd.DataFrame) -> float:
     """
     daily_returns = df["Close"].pct_change()
     return daily_returns.rolling(window=20).std().iloc[-1] * np.sqrt(252) * 100
+    
+    def calc_annualized_return(df: pd.DataFrame) -> float:
+    """
+    PROCESSING: Annualized return based on daily close-to-close returns.
+    Annualized return = average daily return * 252 * 100.
+    """
+    daily_returns = df["Close"].pct_change().dropna()
+    return daily_returns.mean() * 252 * 100
+
 
 
 def classify_volatility(volatility: float) -> str:
@@ -568,9 +588,28 @@ def fetch_portfolio_data(tickers: list, benchmark: str) -> pd.DataFrame:
     Each column in the returned DataFrame is one ticker.
     """
     all_tickers = tickers + [benchmark]
-    raw = yf.download(all_tickers, period="1y", progress=False)["Close"]
-    return raw
 
+    raw = yf.download(
+        all_tickers,
+        period="1y",
+        progress=False,
+        auto_adjust=False
+    )
+
+    if raw.empty:
+        return pd.DataFrame()
+
+    if isinstance(raw.columns, pd.MultiIndex):
+        if "Close" in raw.columns.get_level_values(0):
+            raw = raw["Close"]
+        elif "Adj Close" in raw.columns.get_level_values(0):
+            raw = raw["Adj Close"]
+    else:
+        if "Close" in raw.columns:
+            raw = raw[["Close"]]
+            raw.columns = all_tickers[:1]
+
+    return raw.dropna(how="all")
 
 def calc_portfolio_returns(raw, tickers, weights, benchmark):
     """
@@ -730,9 +769,11 @@ def ui_stock_analysis(ticker: str):
         st.stop()
 
     st.success(f"6 months of daily data loaded for {ticker}")
-    with st.expander("View Raw Data (Last 10 Rows)", expanded=False):
-        st.dataframe(df[["Open", "High", "Low", "Close", "Volume"]].tail(10),
-                     use_container_width=True)
+       with st.expander("Data", expanded=False):
+        st.dataframe(
+            df[["Open", "High", "Low", "Close", "Volume"]].tail(10),
+            use_container_width=True
+        )
 
     # ── Step 2: Trend Analysis ────────────────────────────────────────────────
     ui_step_header(2, "Trend Analysis  |  Moving Averages")
@@ -762,19 +803,29 @@ def ui_stock_analysis(ticker: str):
 
     st.pyplot(chart_rsi(df, ticker), use_container_width=True)
 
-    # ── Step 4: Volatility ────────────────────────────────────────────────────
-    ui_step_header(4, "Volatility  |  20-Day Annualized")
+       # ── Step 4: Volatility / Annualized Return ────────────────────────────────
+    ui_step_header(4, "Risk & Return  |  Annualized")
     volatility = calc_volatility(df)
+    annualized_return = calc_annualized_return(df)
     vol_level  = classify_volatility(volatility)
 
-    col1, col2 = st.columns(2)
-    col1.metric("Annualized Volatility", f"{volatility:.2f}%")
-    col2.metric("Volatility Level",      vol_level)
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Annualized Return", f"{annualized_return:.2f}%")
+    col2.metric("Annualized Volatility", f"{volatility:.2f}%")
+    col3.metric("Volatility Level", vol_level)
 
     # ── Step 5: Recommendation ────────────────────────────────────────────────
     ui_step_header(5, "Trading Recommendation")
     rec, exp = build_recommendation(ticker, trend, rsi_value, vol_level, volatility)
     ui_badge(rec, exp)
+    st.markdown(
+        f"""
+        <p style='color:{C_MUTED}; font-size:0.78rem; margin-top:0.8rem; font-family:{FONT};'>
+            This is the recommendation based off of the shown variables. This is not financial advice.
+        </p>
+        """,
+        unsafe_allow_html=True
+    )
 
     # ── Download ──────────────────────────────────────────────────────────────
     st.markdown(f"<hr style='border-top:1px solid {C_BORDER}; margin-top:2rem'>",
@@ -788,30 +839,42 @@ def ui_stock_analysis(ticker: str):
     )
 
 
-def ui_portfolio_dashboard(tickers_input: str, weights_input: str, benchmark: str):
+def ui_portfolio_dashboard(tickers_input: str, raw_weights: list, benchmark: str):
     """
     DISPLAY: Render all 6 steps for the Portfolio Dashboard.
     Validates inputs, calls calculation functions, then renders results.
     """
 
-    # Parse comma-separated inputs
-    tickers = [t.strip().upper() for t in tickers_input.split(",")]
-    weights = [float(w.strip()) for w in weights_input.split(",")]
+      # Parse comma-separated inputs
+    tickers = [
+        t.strip().upper()
+        for t in tickers_input.split(",")
+        if t.strip()
+    ]
 
     # Validate before downloading anything
-    if len(tickers) != 5:
-        st.error("Enter exactly 5 stock tickers.")
+    if len(tickers) == 0:
+        st.error("Enter at least one stock ticker.")
         st.stop()
-    if len(weights) != 5:
-        st.error("Enter exactly 5 weights.")
+
+    if len(raw_weights) != len(tickers):
+        st.error("Ticker and weight inputs do not match. Check your tickers.")
         st.stop()
-    if abs(sum(weights) - 1.0) > 0.01:
-        st.error(f"Weights must sum to 1.00. Current sum: {sum(weights):.2f}")
+
+    if sum(raw_weights) <= 0:
+        st.error("At least one portfolio weight must be greater than 0.")
         st.stop()
+
+    # Normalize slider weights so they always sum to 1.00
+    weights = [w / sum(raw_weights) for w in raw_weights]
+
 
     # ── Step 1: Portfolio Setup ───────────────────────────────────────────────
     ui_step_header(1, "Portfolio Setup")
-    weight_df = pd.DataFrame({"Ticker": tickers, "Weight": [f"{w:.0%}" for w in weights]})
+        weight_df = pd.DataFrame({
+        "Ticker": tickers,
+        "Weight": [f"{w:.1%}" for w in weights]
+    })
     col1, _ = st.columns([1, 3])
     col1.dataframe(weight_df, use_container_width=True, hide_index=True)
 
@@ -824,8 +887,9 @@ def ui_portfolio_dashboard(tickers_input: str, weights_input: str, benchmark: st
         st.stop()
 
     st.success(f"1 year of closing prices loaded for: {', '.join(tickers + [benchmark])}")
-    with st.expander("View Closing Prices (Last 5 Rows)", expanded=False):
+            with st.expander("Data", expanded=False):
         st.dataframe(raw.tail(5), use_container_width=True)
+
 
     # ── Step 3: Return Calculations ───────────────────────────────────────────
     ui_step_header(3, "Return Calculations  |  Portfolio vs Benchmark")
@@ -972,9 +1036,37 @@ def main():
             f"letter-spacing:0.12em; font-family:{FONT};'>Portfolio Settings</p>",
             unsafe_allow_html=True
         )
-        tickers_input = st.sidebar.text_input("5 Tickers (comma-separated)", "AAPL, MSFT, JPM, AMZN, NVDA")
-        weights_input = st.sidebar.text_input("Weights (must sum to 1.00)",   "0.20, 0.20, 0.20, 0.20, 0.20")
-        benchmark     = st.sidebar.text_input("Benchmark ETF", "SPY").upper()
+               tickers_input = st.sidebar.text_input(
+            "Tickers (comma-separated)",
+            "AAPL, MSFT, JPM, AMZN, NVDA"
+        )
+
+        tickers_preview = [
+            t.strip().upper()
+            for t in tickers_input.split(",")
+            if t.strip()
+        ]
+
+        st.sidebar.markdown(
+            f"<p style='color:{C_MUTED}; font-size:0.72rem; margin-bottom:0.25rem; font-family:{FONT};'>"
+            "Portfolio Weights</p>",
+            unsafe_allow_html=True
+        )
+
+        raw_weights = []
+        if tickers_preview:
+            default_weight = round(100 / len(tickers_preview))
+            for ticker_symbol in tickers_preview:
+                raw_weight = st.sidebar.slider(
+                    f"{ticker_symbol} Weight",
+                    min_value=0,
+                    max_value=100,
+                    value=default_weight,
+                    step=1
+                )
+                raw_weights.append(raw_weight)
+
+        benchmark = st.sidebar.text_input("Benchmark ETF", "SPY").upper()
         st.sidebar.write("")
         run = st.sidebar.button("Run Analysis")
 
@@ -992,8 +1084,9 @@ def main():
         st.markdown(f"<hr style='border-top:1px solid {C_BORDER}; margin-bottom:1.2rem'>",
                     unsafe_allow_html=True)
 
-        if run:
-            ui_portfolio_dashboard(tickers_input, weights_input, benchmark)
+                if run:
+            ui_portfolio_dashboard(tickers_input, raw_weights, benchmark)
+
         else:
             st.markdown(
                 f"<p style='color:{C_MUTED}; margin-top:1.5rem; font-family:{FONT};'>"
