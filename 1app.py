@@ -418,7 +418,6 @@ try:
                 "price":      price,
                 "change_pct": chg_pct
             })
-results = []
 try:
     # your download code
     raw = yf.download(
