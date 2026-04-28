@@ -384,23 +384,29 @@ def fetch_ticker_data(symbols: list) -> list:
     Uses yfinance fast_info for speed. Cached for 5 minutes (ttl=300).
     """
     results = []
-    try:
-        # Download all at once for speed (much faster than one-by-one)
-               raw = yf.download(
-            symbols,
-            period="2d",
-            progress=False,
-            threads=True,
-            auto_adjust=False
-        )["Close"]
+try:
+    # Download all at once for speed (much faster than one-by-one)
+    raw = yf.download(
+        symbols,
+        period="2d",
+        progress=False,
+        threads=True,
+        auto_adjust=False
+    )["Close"]
+
     if raw.empty:
-            return results
-        # Handle single-ticker edge case (returns a Series, not DataFrame)
-        if isinstance(raw, pd.Series):
-            raw = raw.to_frame()
-        for sym in symbols:
-            if sym not in raw.columns:
-                continue
+        return results
+
+    # Handle single-ticker edge case (returns a Series, not DataFrame)
+    if isinstance(raw, pd.Series):
+        raw = raw.to_frame()
+
+    for sym in symbols:
+        if sym not in raw.columns:
+            continue
+        col = raw[sym].dropna()
+        if len(col) < 2:
+            continue
             col = raw[sym].dropna()
             if len(col) < 2:
                 continue
