@@ -418,7 +418,7 @@ try:
                 "price":      price,
                 "change_pct": chg_pct
             })
-except        
+except:        
     try:
     # your download code
     raw = yf.download(
