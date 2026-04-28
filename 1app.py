@@ -418,10 +418,6 @@ try:
                 "price":      price,
                 "change_pct": chg_pct
             })
-    except Exception:
-        pass  # If fetch fails, ticker tape just won't render (non-critical)
-    return results
-
 
 def render_ticker_tape():
     """
