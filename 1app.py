@@ -418,6 +418,41 @@ try:
                 "price":      price,
                 "change_pct": chg_pct
             })
+results = []
+try:
+    # your download code
+    raw = yf.download(
+        symbols,
+        period="2d",
+        progress=False,
+        threads=True,
+        auto_adjust=False
+    )["Close"]
+
+    if raw.empty:
+        return results
+
+    if isinstance(raw, pd.Series):
+        raw = raw.to_frame()
+
+    for sym in symbols:
+        if sym not in raw.columns:
+            continue
+        col = raw[sym].dropna()
+        if len(col) < 2:
+            continue
+
+        # build your dict
+        results.append({
+            "symbol": sym,
+            "price": col.iloc[-1],
+            "change_pct": (col.iloc[-1] - col.iloc[-2]) / col.iloc[-2] * 100
+        })
+
+except Exception:
+    pass  # If fetch fails, ticker tape just won't render (non-critical)
+
+return results
 
 def render_ticker_tape():
     """
