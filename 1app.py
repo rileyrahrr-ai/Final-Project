@@ -419,8 +419,7 @@ try:
                 "change_pct": chg_pct
             })
 except:        
-    try:
-    # your download code
+try:
     raw = yf.download(
         symbols,
         period="2d",
