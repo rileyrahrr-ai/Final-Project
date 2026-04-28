@@ -427,7 +427,7 @@ except:
             threads=True,
             auto_adjust=False
         )["Close"]
-finally:
+except:
     if raw.empty:
         return results
 
