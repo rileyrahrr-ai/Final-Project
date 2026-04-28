@@ -1,5 +1,7 @@
-streamlit
+streamlit 
 yfinance
 pandas
+mtplotlib.pyplot
+matplotlib.font_manager
 numpy
-matplotlib
+time
