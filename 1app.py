@@ -393,7 +393,7 @@ def fetch_ticker_data(symbols: list) -> list:
             threads=True,
             auto_adjust=False
         )["Close"]
-        if raw.empty:
+    if raw.empty:
             return results
         # Handle single-ticker edge case (returns a Series, not DataFrame)
         if isinstance(raw, pd.Series):
